@@ -24,6 +24,12 @@ version_toml = ["pyproject.toml:project.version"]
 allow_zero_version = true
 commit_message = "chore(release): {version}"
 
+[tool.semantic_release.commit_parser_options]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "deps", "security"]
+parse_squash_commits = true
+ignore_merge_commits = true
+
 [tool.semantic_release.changelog]
 template_dir = "templates"
 

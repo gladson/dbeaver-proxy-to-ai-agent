@@ -178,6 +178,49 @@ If you already have a `.env` file:
 docker compose up --build
 ```
 
+## Versioning and releases
+
+This project uses **Semantic Versioning (SemVer)** and **Conventional Commits**.
+Releases are automated via **python-semantic-release** in GitHub Actions.
+
+### How it works
+
+- A push to `main` triggers the release workflow.
+- `python-semantic-release` analyzes commit messages and determines the next version.
+- If a release is created, it:
+  - Creates a Git tag in the format `vX.Y.Z`
+  - Updates `project.version` in `pyproject.toml`
+  - Generates `CHANGELOG.md` from templates
+  - Publishes Docker images tagged with:
+    - `latest`
+    - `vX.Y.Z`
+
+### Conventional Commits (examples)
+
+- `feat(proxy): add tool_choice forwarding` -> minor bump
+- `fix(api): handle gzip bodies` -> patch bump
+- `perf(proxy): reduce allocations` -> patch bump
+- `docs: update readme` -> no version bump
+
+Breaking changes:
+
+Include `BREAKING CHANGE:` in the commit body to trigger a major bump.
+
+### GitHub Actions secrets
+
+- `GITHUB_TOKEN`
+  - Provided automatically by GitHub.
+  - Works in most repos.
+- `RELEASE_TOKEN` (optional)
+  - A PAT with permissions to push commits/tags, used if `GITHUB_TOKEN` cannot push to `main` due to branch protection.
+- `DOCKERHUB_USERNAME` (optional)
+- `DOCKERHUB_TOKEN` (optional)
+
+Notes:
+
+- GHCR publish uses `github.token` and will run when a release is created.
+- Docker Hub publish runs only when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are set.
+
 ## Troubleshooting
 
 ### DBeaver error: "HTTP/1.1 header parser received no bytes" / "Connection reset"

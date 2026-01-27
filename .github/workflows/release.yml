@@ -1,29 +1,32 @@
-name: Build and Publish Docker
+name: Release
 
 on:
   push:
     branches: ["main"]
-    tags: ["v*"]
-    paths-ignore:
-      - "README.md"
-      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
-  test:
-    name: Lint and test
+  release:
+    name: semantic release and docker publish
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the repo
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - name: Force branch to workflow sha
+        run: |
+          git reset --hard ${{ github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,67 +49,55 @@ jobs:
       - name: Test (pytest)
         run: pytest
 
-  docker_ghcr:
-    name: Publish image to GHCR
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v4
+      - name: Semantic version release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v10.5.3
+        with:
+          github_token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          git_committer_name: "github-actions"
+          git_committer_email: "actions@users.noreply.github.com"
 
       - name: Set up QEMU
+        if: steps.release.outputs.released == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.release.outputs.released == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
+        if: steps.release.outputs.released == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
-            type=sha,format=short
-          labels: |
-            org.opencontainers.image.title=dbeaver-proxy-to-mistral
-            org.opencontainers.image.description=DBeaver (OpenAI Responses) proxy to Mistral API
-            org.opencontainers.image.source=${{ github.repositoryUrl }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and push Docker image
+      - name: Build and push image (GHCR)
+        if: steps.release.outputs.released == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.release.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=dbeaver-proxy-to-mistral
+            org.opencontainers.image.description=DBeaver (OpenAI Responses) proxy to Mistral API
+            org.opencontainers.image.version=${{ steps.release.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  docker_dockerhub:
-    name: Publish image to Docker Hub
-    runs-on: ubuntu-latest
-    needs: test
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v4
-
       - name: Check Docker Hub credentials
         id: dockerhub
+        if: steps.release.outputs.released == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -116,46 +107,28 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up QEMU
-        if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Docker Hub
-        if: steps.dockerhub.outputs.enabled == 'true'
+        if: steps.release.outputs.released == 'true' && steps.dockerhub.outputs.enabled == 'true'
         uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ env.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker metadata
-        id: meta
-        if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.DOCKERHUB_USERNAME }}/dbeaver-proxy-to-mistral
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
-            type=sha,format=short
-          labels: |
-            org.opencontainers.image.title=dbeaver-proxy-to-mistral
-            org.opencontainers.image.description=DBeaver (OpenAI Responses) proxy to Mistral API
-            org.opencontainers.image.source=${{ github.repositoryUrl }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and push Docker image
-        if: steps.dockerhub.outputs.enabled == 'true'
+      - name: Build and push image (Docker Hub)
+        if: steps.release.outputs.released == 'true' && steps.dockerhub.outputs.enabled == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            isyuricunha/dbeaver-proxy-to-mistral:latest
+            isyuricunha/dbeaver-proxy-to-mistral:${{ steps.release.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=dbeaver-proxy-to-mistral
+            org.opencontainers.image.description=DBeaver (OpenAI Responses) proxy to Mistral API
+            org.opencontainers.image.version=${{ steps.release.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
