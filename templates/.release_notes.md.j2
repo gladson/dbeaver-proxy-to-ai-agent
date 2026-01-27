@@ -25,7 +25,11 @@
 ## {{ title }}
 
 {% for commit in commits %}
+{% if commit.descriptions is defined and commit.descriptions %}
 - {{ commit.descriptions[0] }}
+{% else %}
+- {{ commit.message.split("\n")[0] }}
+{% endif %}
 {% endfor %}
 
 {% endif %}
