@@ -1,7 +1,6 @@
 services:
   dbeaver-proxy-to-mistral:
-    build: .
-    image: dbeaver-proxy-to-mistral:local
+    image: ghcr.io/isyuricunha/dbeaver-proxy-to-mistral:latest
     ports:
       - "60916:60916"
     environment:
