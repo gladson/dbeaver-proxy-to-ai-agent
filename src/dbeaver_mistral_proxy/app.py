@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gzip
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -20,6 +22,66 @@ load_dotenv()
 
 app = FastAPI()
 
+log = logging.getLogger("dbeaver_mistral_proxy")
+
+
+async def read_json_payload(request: Request) -> dict[str, Any] | None:
+    body = await request.body()
+    if not body:
+        log.warning(
+            "empty request body method=%s path=%s content-length=%s content-encoding=%s expect=%s",
+            request.method,
+            request.url.path,
+            request.headers.get("content-length"),
+            request.headers.get("content-encoding"),
+            request.headers.get("expect"),
+        )
+        return None
+
+    content_encoding = (request.headers.get("content-encoding") or "").lower()
+    if "gzip" in content_encoding:
+        try:
+            body = gzip.decompress(body)
+        except OSError:
+            log.warning(
+                "gzip decompress failed method=%s path=%s content-length=%s",
+                request.method,
+                request.url.path,
+                request.headers.get("content-length"),
+            )
+            return None
+
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        log.warning(
+            "utf-8 decode failed method=%s path=%s content-length=%s",
+            request.method,
+            request.url.path,
+            request.headers.get("content-length"),
+        )
+        return None
+
+    text = text.strip()
+    if not text:
+        return None
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        log.warning(
+            "json decode failed method=%s path=%s content-length=%s",
+            request.method,
+            request.url.path,
+            request.headers.get("content-length"),
+        )
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    return payload
+
 
 @app.get("/models")
 @app.get("/v1/models")
@@ -37,7 +99,16 @@ async def responses(request: Request):
         return JSONResponse(status_code=401, content={"error": {"message": str(exc)}})
     mistral = MistralClient(settings)
 
-    payload: dict[str, Any] = await request.json()
+    payload = await read_json_payload(request)
+    if payload is None:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "message": "Invalid request body: expected JSON object"
+                }
+            },
+        )
 
     model = payload.get("model") or settings.default_model
     messages = extract_text_from_dbeaver_responses_input(payload)
@@ -101,7 +172,12 @@ async def chat_completions(request: Request) -> JSONResponse:
         return JSONResponse(status_code=401, content={"error": {"message": str(exc)}})
     mistral = MistralClient(settings)
 
-    payload: dict[str, Any] = await request.json()
+    payload = await read_json_payload(request)
+    if payload is None:
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"message": "Invalid request body: expected JSON object"}},
+        )
     model = payload.get("model") or settings.default_model
 
     mistral_payload: dict[str, Any] = {
