@@ -1,0 +1,32 @@
+{% set headings = {
+  "breaking": "Breaking Changes",
+  "feat": "Features",
+  "feature": "Features",
+  "fix": "Bug Fixes",
+  "bugfix": "Bug Fixes",
+  "bug fix": "Bug Fixes",
+  "perf": "Performance Improvements",
+  "performance": "Performance Improvements",
+  "refactor": "Refactoring",
+  "docs": "Documentation",
+  "documentation": "Documentation",
+  "deps": "Dependencies",
+  "dependencies": "Dependencies",
+  "security": "Security",
+  "test": "Tests",
+  "ci": "CI",
+  "build": "Build",
+  "chore": "Chores",
+} %}
+
+{% for type_, commits in release["elements"] | dictsort %}
+{% set title = headings.get(type_, type_ | replace("_", " ") | title) %}
+{% if commits %}
+## {{ title }}
+
+{% for commit in commits %}
+- {{ commit.descriptions[0] }}
+{% endfor %}
+
+{% endif %}
+{% endfor %}
