@@ -8,6 +8,7 @@ services:
       MISTRAL_API_KEY: "xdx"
       MISTRAL_BASE_URL: "https://api.mistral.ai/v1"
       MISTRAL_MODEL: "mistral-large-latest"
+       # comma-separated list advertised to DBeaver via GET /models
       MISTRAL_MODELS: "mistral-large-latest"
       HOST: "0.0.0.0"
       PORT: "60916"
