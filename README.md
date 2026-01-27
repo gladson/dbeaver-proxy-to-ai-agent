@@ -127,14 +127,14 @@ This repo includes an example unit file and env file template:
 
 1. Create a virtualenv and install deps (see Local development).
 
-2. Create the environment file used by the service:
+1. Create the environment file used by the service:
 
 ```bash
 cp .env.example /home/cloud/not-safe/github/dbeaver-proxy-to-mistral/.env
 # edit the file and set MISTRAL_API_KEY
 ```
 
-3. Install the unit file:
+1. Install the unit file:
 
 ```bash
 sudo cp deploy/systemd/dbeaver-mistral-proxy.service /etc/systemd/system/dbeaver-mistral-proxy.service
@@ -147,6 +147,35 @@ sudo systemctl restart dbeaver-mistral-proxy
 
 ```bash
 journalctl -u dbeaver-mistral-proxy -f
+```
+
+## Docker
+
+This project can run as a lightweight container.
+
+### Build
+
+```bash
+docker build -t dbeaver-proxy-to-mistral:local .
+```
+
+### Run (Docker)
+
+You must provide `MISTRAL_API_KEY` (and optionally other variables).
+
+```bash
+docker run --rm -p 60916:60916 \
+  -e MISTRAL_API_KEY="..." \
+  -e MISTRAL_MODEL="mistral-large-latest" \
+  dbeaver-proxy-to-mistral:local
+```
+
+### docker compose
+
+If you already have a `.env` file:
+
+```bash
+docker compose up --build
 ```
 
 ## Troubleshooting
