@@ -11,7 +11,7 @@ This proxy:
 - Supports **streaming** (Server-Sent Events) and non-streaming.
 - Is configurable via environment variables and can run as a **systemd** service.
 
-![Preview](https://i.imgur.com/0VoY9fM.png)
+![Preview](https://i.imgur.com/yXR2G0n.png)
 
 ## Supported endpoints
 
