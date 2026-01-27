@@ -12,6 +12,8 @@ class MistralClient:
         self._settings = settings
 
     def _headers(self) -> dict[str, str]:
+        if not self._settings.mistral_api_key:
+            raise RuntimeError("MISTRAL_API_KEY is required")
         return {
             "Authorization": f"Bearer {self._settings.mistral_api_key}",
             "Content-Type": "application/json",

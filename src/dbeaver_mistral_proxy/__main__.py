@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 
-from dotenv import load_dotenv
 import uvicorn
+from dotenv import load_dotenv
 
 
 def main() -> None:

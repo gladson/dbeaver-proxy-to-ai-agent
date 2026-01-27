@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
-from dbeaver_mistral_proxy.config import load_settings
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from dbeaver_mistral_proxy.config import MissingConfigError, load_settings
 from dbeaver_mistral_proxy.mistral_client import MistralClient
 from dbeaver_mistral_proxy.openai_responses import (
     build_dbeaver_responses_output_text,
@@ -23,14 +24,17 @@ app = FastAPI()
 @app.get("/models")
 @app.get("/v1/models")
 async def list_models() -> dict[str, Any]:
-    settings = load_settings()
+    settings = load_settings(require_api_key=False)
     return build_models_response(settings.advertised_models)
 
 
 @app.post("/responses")
 @app.post("/v1/responses")
 async def responses(request: Request):
-    settings = load_settings()
+    try:
+        settings = load_settings(require_api_key=True)
+    except MissingConfigError as exc:
+        return JSONResponse(status_code=401, content={"error": {"message": str(exc)}})
     mistral = MistralClient(settings)
 
     payload: dict[str, Any] = await request.json()
@@ -91,7 +95,10 @@ async def responses(request: Request):
 @app.post("/chat/completions")
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> JSONResponse:
-    settings = load_settings()
+    try:
+        settings = load_settings(require_api_key=True)
+    except MissingConfigError as exc:
+        return JSONResponse(status_code=401, content={"error": {"message": str(exc)}})
     mistral = MistralClient(settings)
 
     payload: dict[str, Any] = await request.json()
