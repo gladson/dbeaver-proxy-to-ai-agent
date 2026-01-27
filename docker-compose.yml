@@ -1,0 +1,9 @@
+services:
+  dbeaver-proxy-to-mistral:
+    build: .
+    image: dbeaver-proxy-to-mistral:local
+    ports:
+      - "60916:60916"
+    env_file:
+      - .env
+    restart: unless-stopped
