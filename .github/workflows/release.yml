@@ -63,6 +63,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare artifact
+        shell: bash
         run: |
           binary="target/${{ matrix.target }}/release/dbeaver-proxy"
           if [ "${{ matrix.runner }}" = "windows-latest" ]; then
