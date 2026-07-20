@@ -56,7 +56,7 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          sed -i "s/^version = .*/version = \"${VERSION}\"/" Cargo.toml
+          sed -i 's/^version = .*/version = "'"${VERSION}"'"/' Cargo.toml
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
@@ -137,7 +137,7 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          sed -i "s/^version = .*/version = \"${VERSION}\"/" Cargo.toml
+          sed -i 's/^version = .*/version = "'"${VERSION}"'"/' Cargo.toml
           git add Cargo.toml
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
