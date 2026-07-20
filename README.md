@@ -3,13 +3,13 @@
 A high-performance, single-binary HTTP proxy that translates **DBeaver CE**'s OpenAI Responses API calls into standard Chat Completions requests for any AI backend (OpenAI, Mistral, OmniRoute, or any OpenAI-compatible API).
 
 ```
-╔══════════════════════════════════════════╗
-║         DBeaver Proxy — Rust            ║
-║     OpenAI Responses → Chat Completions  ║
-║                                          ║
-║         Created by Gladson               ║
-║   gladsonbrito@gmail.com                 ║
-╚══════════════════════════════════════════╝
+╔═════════════════════════════════════════════╗
+║             DBeaver Proxy — Rust            ║
+║     OpenAI Responses → Chat Completions     ║
+║                                             ║
+║             Created by Gladson              ║
+║           gladsonbrito@gmail.com            ║
+╚═════════════════════════════════════════════╝
 ```
 
 ## Features
