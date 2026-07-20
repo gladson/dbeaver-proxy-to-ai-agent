@@ -40,6 +40,8 @@ Download the binary for your platform from the [latest release](https://github.c
 | Windows (x86_64) | `dbeaver-proxy-x86_64-windows.exe` |
 | macOS (Intel + Apple Silicon) | `dbeaver-proxy-macos` |
 
+> **macOS Gatekeeper:** The pre-built macOS binary is ad-hoc signed but not notarized (requires an Apple Developer account). When you first run it, macOS may block it. See [macOS Gatekeeper](#macos-gatekeeper) below to resolve.
+
 ### 2. Configure
 
 Run the setup wizard:
@@ -93,6 +95,43 @@ In DBeaver CE:
 5. Click **Apply and Close**
 
 > **Important:** The API Key in DBeaver must match the `api_key` in `dbeaver-proxy.toml`.
+
+## macOS Gatekeeper
+
+The pre-built macOS binary is **ad-hoc signed** (`codesign -s -`), which satisfies macOS's minimum code signing requirements but does **not** include Apple notarization (requires an Apple Developer account). When you first run it, macOS may display:
+
+> **"dbeaver-proxy-macos" cannot be opened because the developer cannot be verified.**
+
+To resolve this:
+
+### Option 1: Right-click → Open (recommended)
+
+1. Open **Finder** and locate the binary
+2. **Right-click** → **Open**
+3. Click **Open** in the dialog
+
+This tells macOS to trust the binary for this session.
+
+### Option 2: Remove quarantine attribute
+
+```bash
+chmod +x dbeaver-proxy-macos
+xattr -d com.apple.quarantine dbeaver-proxy-macos
+./dbeaver-proxy-macos init
+```
+
+### Option 3: Full notarization (requires Apple Developer account)
+
+If you have an Apple Developer account, you can sign and notarize the binary:
+
+```bash
+codesign --force --deep -s "Developer ID Application: Your Name" dbeaver-proxy-macos
+xcrun notarytool submit dbeaver-proxy-macos --apple-id your@email.com \
+  --team-id YOUR_TEAM_ID --password @keychain:AC_PASSWORD --wait
+xcrun stapler staple dbeaver-proxy-macos
+```
+
+These steps apply to both Intel and Apple Silicon Macs.
 
 ## CLI Reference
 
