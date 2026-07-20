@@ -30,9 +30,21 @@ A high-performance, single-binary HTTP proxy that translates **DBeaver CE**'s Op
 
 ## Quick Start
 
-### 1. Download
+### 1. Install
 
-Download the binary for your platform from the [latest release](https://github.com/yourusername/dbeaver-proxy-rust/releases):
+Choose one of the options below:
+
+#### Option A: Cargo Install
+
+If you have Rust installed, install directly from [crates.io](https://crates.io/crates/dbeaver-proxy):
+
+```bash
+cargo install dbeaver-proxy
+```
+
+#### Option B: Pre-built Binary
+
+Download the binary for your platform from the [latest release](https://github.com/gladson/dbeaver-proxy-to-ai-agent/releases):
 
 | Platform | Binary |
 |----------|--------|
@@ -225,27 +237,6 @@ cd dbeaver-proxy-rust
 cargo build --release
 ./target/release/dbeaver-proxy --help
 ```
-
-### Test
-
-```bash
-cargo test
-cargo clippy -- -D warnings
-```
-
-## CI/CD
-
-The project includes GitHub Actions workflows:
-
-- **`ci.yml`** — Runs on every push/PR to `main`:
-  - `cargo fmt --check` + `cargo clippy -- -D warnings`
-  - `cargo test`
-  - Build for 4 targets: Linux (x86_64), Windows (x86_64), macOS (Intel + Apple Silicon)
-
-- **`release.yml`** — Manual trigger via GitHub Actions (`workflow_dispatch`):
-  - Enter version number, builds for all 4 targets
-  - Creates macOS Universal Binary via `lipo` + ad-hoc signing
-  - Publishes GitHub Release with all binaries + SHA256 checksums
 
 ## License
 
