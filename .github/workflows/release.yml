@@ -170,3 +170,27 @@ jobs:
             artifacts/dbeaver-proxy-x86_64-windows.exe.sha256
             artifacts/dbeaver-proxy-macos
             artifacts/dbeaver-proxy-macos.sha256
+
+  # ── Publish to crates.io ──
+  cargo-publish:
+    name: Publish to crates.io
+    needs: [github-release]
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ github.event.inputs.version }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify version
+        run: |
+          echo "Publishing version: v${{ github.event.inputs.version }}"
+          grep '^version = ' Cargo.toml
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
