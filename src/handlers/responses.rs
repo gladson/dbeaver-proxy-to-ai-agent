@@ -28,10 +28,10 @@ pub async fn handle_response(
     let config = state.config();
 
     // Validate API key from request headers
-    if !config.api_key.is_empty() {
-        if let Err(resp) = validate_auth(request.headers(), config) {
-            return resp;
-        }
+    if !config.api_key.is_empty()
+        && let Err(resp) = validate_auth(request.headers(), config)
+    {
+        return resp;
     }
 
     // Parse request body
@@ -92,10 +92,10 @@ pub async fn handle_passthrough(
 ) -> impl IntoResponse {
     let config = state.config();
 
-    if !config.api_key.is_empty() {
-        if let Err(resp) = validate_auth(request.headers(), config) {
-            return resp;
-        }
+    if !config.api_key.is_empty()
+        && let Err(resp) = validate_auth(request.headers(), config)
+    {
+        return resp;
     }
 
     let body_bytes = match axum::body::to_bytes(request.into_body(), 10 * 1024 * 1024).await {
@@ -145,6 +145,7 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
 ///
 /// DBeaver sends the configured token as `Authorization: Bearer <token>`.
 /// Returns `Ok(())` if valid, or `Err(response)` with 401 if invalid/missing.
+#[allow(clippy::result_large_err)]
 fn validate_auth(
     headers: &HeaderMap,
     config: &crate::config::Config,
