@@ -24,6 +24,10 @@ A high-performance, single-binary HTTP proxy that translates **DBeaver CE**'s Op
 - **📊 Optional metrics** — Lightweight metrics for OmniRoute integration
 - **🖥️ Cross-platform** — Pre-built binaries for Linux, Windows, and macOS (Intel + Apple Silicon)
 
+<img width="1240" height="808" alt="image" src="https://github.com/user-attachments/assets/b46fbf67-745a-40e9-bbd1-a5589243062f" />
+
+
+
 ## Quick Start
 
 ### 1. Download
