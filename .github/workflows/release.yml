@@ -1,39 +1,19 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 0.1.0)"
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Determine next version and create Release PR ──
-  release-plz:
-    name: Release-plz
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    outputs:
-      releases: ${{ steps.release-plz.outputs.releases }}
-      prs: ${{ steps.release-plz.outputs.prs }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run release-plz
-        id: release-plz
-        uses: MarcoIeni/release-plz-action@v0.5
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ── Build and publish when release-plz creates a release ──
-  build-and-publish:
-    name: Build & Publish
-    if: ${{ fromJSON(needs.release-plz.outputs.releases)[0] != '' }}
-    needs: [release-plz]
+  # ── Build all platform targets ──
+  build:
+    name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -54,8 +34,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -74,6 +52,10 @@ jobs:
             ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-
             ${{ runner.os }}-cargo-
 
+      - name: Update Cargo.toml version
+        run: |
+          sed -i "s/^version = .*/version = \"${{ github.event.inputs.version }}\"/" Cargo.toml
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
@@ -91,7 +73,6 @@ jobs:
           fi
           cp "$binary" "$artifact_name"
 
-          # Generate SHA256 checksum
           if command -v sha256sum &> /dev/null; then
             sha256sum "$artifact_name" > "${artifact_name}.sha256"
           elif command -v shasum &> /dev/null; then
@@ -109,8 +90,7 @@ jobs:
   # ── Create macOS Universal Binary ──
   universal-macos:
     name: Universal Binary (macOS)
-    if: ${{ fromJSON(needs.release-plz.outputs.releases)[0] != '' }}
-    needs: [release-plz, build-and-publish]
+    needs: [build]
     runs-on: macos-latest
     steps:
       - name: Download x86_64 macOS binary
@@ -141,16 +121,25 @@ jobs:
             dbeaver-proxy-macos
             dbeaver-proxy-macos.sha256
 
-  # ── Attach binaries to GitHub Release ──
-  attach-to-release:
-    name: Attach binaries to Release
-    if: ${{ fromJSON(needs.release-plz.outputs.releases)[0] != '' }}
-    needs: [release-plz, universal-macos]
+  # ── Create GitHub Release ──
+  github-release:
+    name: GitHub Release
+    needs: [build, universal-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Update Cargo.toml version
+        run: |
+          sed -i "s/^version = .*/version = \"${{ github.event.inputs.version }}\"/" Cargo.toml
+          git add Cargo.toml
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "chore(release): v${{ github.event.inputs.version }}" --allow-empty
+          git tag v${{ github.event.inputs.version }}
+          git push origin v${{ github.event.inputs.version }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -158,15 +147,15 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Get release tag
-        id: tag
-        run: |
-          echo "tag=${{ fromJSON(needs.release-plz.outputs.releases)[0].tag }}" >> $GITHUB_OUTPUT
+      - name: List artifacts
+        run: ls -la artifacts/
 
-      - name: Upload assets to Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          generate_release_notes: true
           files: |
             artifacts/dbeaver-proxy-x86_64-linux
             artifacts/dbeaver-proxy-x86_64-linux.sha256

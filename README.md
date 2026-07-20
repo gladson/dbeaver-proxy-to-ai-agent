@@ -199,10 +199,9 @@ The project includes GitHub Actions workflows:
   - `cargo test`
   - Build for 4 targets: Linux (x86_64), Windows (x86_64), macOS (Intel + Apple Silicon)
 
-- **`release.yml`** — Runs on git tag `v*.*.*`:
-  - Builds for all 4 targets
-  - Creates macOS Universal Binary via `lipo`
-  - Ad-hoc signs macOS binary
+- **`release.yml`** — Manual trigger via GitHub Actions (`workflow_dispatch`):
+  - Enter version number, builds for all 4 targets
+  - Creates macOS Universal Binary via `lipo` + ad-hoc signing
   - Publishes GitHub Release with all binaries + SHA256 checksums
 
 ## License

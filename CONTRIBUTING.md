@@ -117,20 +117,16 @@ ci: update build workflow
 
 ## Release Process
 
-Releases are fully automated via [release-plz](https://github.com/MarcoIeni/release-plz):
+Releases are triggered manually via GitHub Actions:
 
-1. **Write code** using [Conventional Commits](https://www.conventionalcommits.org/)
-2. **Push to `main`** — `release-plz` analyzes commits
-3. **Release PR** is automatically created with version bump and changelog
-4. **Merge the Release PR** — a GitHub Release is created with pre-built binaries
-
-No manual tagging required. The version is determined automatically from commit messages:
-
-```
-feat: ...  → minor version bump (1.1.0)
-fix: ...   → patch version bump (1.0.1)
-feat!: ... → major version bump (2.0.0)
-```
+1. Go to **Actions → Release → Run workflow**
+2. Enter the version (e.g., `0.2.0`)
+3. The workflow:
+   - Updates `Cargo.toml` version
+   - Builds binaries for Linux (x86_64), Windows (x86_64), macOS (Intel + Apple Silicon)
+   - Creates macOS Universal Binary via `lipo`
+   - Creates a GitHub Release with all binaries + checksums
+   - Auto-generates release notes from commits
 
 ## Questions?
 
