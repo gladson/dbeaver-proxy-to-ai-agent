@@ -2,16 +2,38 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Build all platform targets ──
-  build:
-    name: Build (${{ matrix.target }})
+  # ── Determine next version and create Release PR ──
+  release-plz:
+    name: Release-plz
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      releases: ${{ steps.release-plz.outputs.releases }}
+      prs: ${{ steps.release-plz.outputs.prs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run release-plz
+        id: release-plz
+        uses: MarcoIeni/release-plz-action@v0.5
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Build and publish when release-plz creates a release ──
+  build-and-publish:
+    name: Build & Publish
+    if: ${{ fromJSON(needs.release-plz.outputs.releases)[0] != '' }}
+    needs: [release-plz]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -32,6 +54,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -51,7 +75,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --all-targets
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare artifact
         run: |
@@ -60,14 +84,12 @@ jobs:
             binary="${binary}.exe"
           fi
 
-          # Copy binary with platform suffix
           if [ "${{ matrix.artifact_raw }}" != "" ]; then
             artifact_name="${{ matrix.artifact_raw }}"
           else
             artifact_name="${{ matrix.artifact }}"
           fi
           cp "$binary" "$artifact_name"
-          echo "binary=$artifact_name" >> $GITHUB_OUTPUT
 
           # Generate SHA256 checksum
           if command -v sha256sum &> /dev/null; then
@@ -86,8 +108,9 @@ jobs:
 
   # ── Create macOS Universal Binary ──
   universal-macos:
-    name: Create macOS Universal Binary
-    needs: [build]
+    name: Universal Binary (macOS)
+    if: ${{ fromJSON(needs.release-plz.outputs.releases)[0] != '' }}
+    needs: [release-plz, build-and-publish]
     runs-on: macos-latest
     steps:
       - name: Download x86_64 macOS binary
@@ -118,10 +141,11 @@ jobs:
             dbeaver-proxy-macos
             dbeaver-proxy-macos.sha256
 
-  # ── Publish GitHub Release ──
-  release:
-    name: Create GitHub Release
-    needs: [build, universal-macos]
+  # ── Attach binaries to GitHub Release ──
+  attach-to-release:
+    name: Attach binaries to Release
+    if: ${{ fromJSON(needs.release-plz.outputs.releases)[0] != '' }}
+    needs: [release-plz, universal-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -134,40 +158,15 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la artifacts/
-
-      - name: Generate release notes
-        id: notes
+      - name: Get release tag
+        id: tag
         run: |
-          {
-            echo "### Downloads"
-            echo ""
-            echo "| Platform | Binary |"
-            echo "|----------|--------|"
-            echo "| Linux (x86_64) | \`dbeaver-proxy-x86_64-linux\` |"
-            echo "| Windows (x86_64) | \`dbeaver-proxy-x86_64-windows.exe\` |"
-            echo "| macOS (Intel + Apple Silicon) | \`dbeaver-proxy-macos\` |"
-            echo ""
-            echo "### Checksums"
-            echo ""
-            echo '```'
-            cat artifacts/*.sha256 2>/dev/null || true
-            echo '```'
-            echo ""
-            echo "### Changelog"
-            echo ""
-            git log "$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD" \
-              --oneline --no-decorate 2>/dev/null || true
-          } > release-notes.md
-          cat release-notes.md
+          echo "tag=${{ fromJSON(needs.release-plz.outputs.releases)[0].tag }}" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Upload assets to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body_path: release-notes.md
+          tag_name: ${{ steps.tag.outputs.tag }}
           files: |
             artifacts/dbeaver-proxy-x86_64-linux
             artifacts/dbeaver-proxy-x86_64-linux.sha256
@@ -175,5 +174,3 @@ jobs:
             artifacts/dbeaver-proxy-x86_64-windows.exe.sha256
             artifacts/dbeaver-proxy-macos
             artifacts/dbeaver-proxy-macos.sha256
-          draft: false
-          prerelease: false
