@@ -1,6 +1,6 @@
 [package]
 name = "dbeaver-proxy"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A Rust proxy that translates DBeaver's OpenAI Responses API calls to any OpenAI-compatible backend"
 license = "MIT"
