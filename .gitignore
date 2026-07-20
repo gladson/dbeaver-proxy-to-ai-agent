@@ -1,1 +1,11 @@
-.claude/settings.json
+.claude
+.specsmd
+specs
+/target
+Cargo.lock
+dbeaver-proxy.toml
+.env
+*.swp
+*.swo
+*~
+.DS_Store
