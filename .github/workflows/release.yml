@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Build all platform targets ──
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            artifact: dbeaver-proxy-x86_64-linux
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            artifact: dbeaver-proxy-x86_64-windows.exe
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            artifact_raw: dbeaver-proxy-x86_64-macos
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            artifact_raw: dbeaver-proxy-aarch64-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-${{ matrix.target }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} --all-targets
+
+      - name: Prepare artifact
+        run: |
+          binary="target/${{ matrix.target }}/release/dbeaver-proxy"
+          if [ "${{ matrix.runner }}" = "windows-latest" ]; then
+            binary="${binary}.exe"
+          fi
+
+          # Copy binary with platform suffix
+          if [ "${{ matrix.artifact_raw }}" != "" ]; then
+            artifact_name="${{ matrix.artifact_raw }}"
+          else
+            artifact_name="${{ matrix.artifact }}"
+          fi
+          cp "$binary" "$artifact_name"
+          echo "binary=$artifact_name" >> $GITHUB_OUTPUT
+
+          # Generate SHA256 checksum
+          if command -v sha256sum &> /dev/null; then
+            sha256sum "$artifact_name" > "${artifact_name}.sha256"
+          elif command -v shasum &> /dev/null; then
+            shasum -a 256 "$artifact_name" > "${artifact_name}.sha256"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}${{ matrix.artifact_raw }}
+          path: |
+            ${{ matrix.artifact }}${{ matrix.artifact_raw }}
+            ${{ matrix.artifact }}${{ matrix.artifact_raw }}.sha256
+
+  # ── Create macOS Universal Binary ──
+  universal-macos:
+    name: Create macOS Universal Binary
+    needs: [build]
+    runs-on: macos-latest
+    steps:
+      - name: Download x86_64 macOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: dbeaver-proxy-x86_64-macos
+
+      - name: Download aarch64 macOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: dbeaver-proxy-aarch64-macos
+
+      - name: Create universal binary
+        run: |
+          chmod +x dbeaver-proxy-x86_64-macos dbeaver-proxy-aarch64-macos
+          lipo -create -output dbeaver-proxy-macos \
+            dbeaver-proxy-x86_64-macos \
+            dbeaver-proxy-aarch64-macos
+          codesign --force --deep -s - dbeaver-proxy-macos
+          sha256sum dbeaver-proxy-macos > dbeaver-proxy-macos.sha256
+          file dbeaver-proxy-macos
+
+      - name: Upload universal binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbeaver-proxy-macos
+          path: |
+            dbeaver-proxy-macos
+            dbeaver-proxy-macos.sha256
+
+  # ── Publish GitHub Release ──
+  release:
+    name: Create GitHub Release
+    needs: [build, universal-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          {
+            echo "### Downloads"
+            echo ""
+            echo "| Platform | Binary |"
+            echo "|----------|--------|"
+            echo "| Linux (x86_64) | \`dbeaver-proxy-x86_64-linux\` |"
+            echo "| Windows (x86_64) | \`dbeaver-proxy-x86_64-windows.exe\` |"
+            echo "| macOS (Intel + Apple Silicon) | \`dbeaver-proxy-macos\` |"
+            echo ""
+            echo "### Checksums"
+            echo ""
+            echo '```'
+            cat artifacts/*.sha256 2>/dev/null || true
+            echo '```'
+            echo ""
+            echo "### Changelog"
+            echo ""
+            git log "$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD" \
+              --oneline --no-decorate 2>/dev/null || true
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: |
+            artifacts/dbeaver-proxy-x86_64-linux
+            artifacts/dbeaver-proxy-x86_64-linux.sha256
+            artifacts/dbeaver-proxy-x86_64-windows.exe
+            artifacts/dbeaver-proxy-x86_64-windows.exe.sha256
+            artifacts/dbeaver-proxy-macos
+            artifacts/dbeaver-proxy-macos.sha256
+          draft: false
+          prerelease: false
